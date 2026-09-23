@@ -3,10 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>字數報價・中文 v1.1.1</title>
+<title>字數報價・中文 v1.2.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M44 60H15Q8 60 8 53V11Q8 4 15 4H49Q56 4 56 11V53Q56 60 49 60H48' fill='%23FAF9F6' stroke='%23C0392B' stroke-width='3' stroke-linecap='round'/%3E%3Crect x='14' y='10' width='36' height='14' rx='2' fill='%23C0392B'/%3E%3Cpath fill='%23C0392B' d='M14 30h10v10H14zM27 30h10v10H27zM14 44h10v10H14zM27 44h10v10H27zM40 30h10v24H40z'/%3E%3C/svg%3E">
 <!--
-  語言鎖定版（字數報價-中文/日文/英文）v1.1.1 (2026-08-19)
+  語言鎖定版（字數報價-中文/日文/英文/韓文）v1.2.0 (2026-09-24)
+  v1.2.0：新增韓文版（Ken 指示）——韓文一個字（音節，如 한、국、어）＝1 字，夾雜英數連續串每串 1 字，
+          空白不計（＝韓國業界「공백 제외 글자수」）；計法直接沿用中日文 ziCount，引擎零改動。
+          語言不符警示加韓文判斷：韓文字母占 CJK >30% 視為韓文檔——中/日/英文版遇韓文檔→韓文版；
+          韓文版遇非韓文 CJK 檔→依假名有無判日文/中文版。既有三語檔無韓文字，判斷結果不變（回歸 ±0）。
+          說明面板「與 Word 同一算法」改為依語言替換的註記：韓文版註明 Word「字數」以空格分詞、不適用韓文。
   v1.1.1：規則面板濃縮（Ken 指示「只留付費者在意的」）——標題「📖 計數與報價規則（…）」→「📖 說明」、
           頂欄捷徑同步改「說明」；11 條收斂為 6 條（保留：計法、不收內容、與 Word 差異、圖片另計、
           範圍與折讓、低消與版本鎖定；刪除：計入清單枚舉、30K 技術上限、語言版本說明——後者由
@@ -177,7 +182,7 @@ footer{margin-top:30px;font-size:11.5px;color:var(--ink-soft);text-align:center}
 
 <div class="top">
   <svg class="logo"><use href="#logoSym"/></svg>
-  <h1>字數報價・中文</h1><span class="ver">v1.1.1</span>
+  <h1>字數報價・中文</h1><span class="ver">v1.2.0</span>
   <a class="rules-link" href="#rules">說明</a>
 </div>
 
@@ -239,7 +244,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 /* 本檔為單一語言鎖定版：中文 原文專用（Ken 指示分語言獨立校準）。引擎基底＝combined v2.0.1。 */
 const LANG={code:"zh",name:"中文",unit:"char"};
 /* 三個語言版本同批建置的兄弟檔名（同資料夾相對連結） */
-const SIBLINGS={zh:{file:"字數報價-中文-v1.1.1.html",name:"中文"},ja:{file:"字數報價-日文-v1.1.1.html",name:"日文"},en:{file:"字數報價-英文-v1.1.1.html",name:"英文"}};
+const SIBLINGS={zh:{file:"字數報價-中文-v1.2.0.html",name:"中文"},ja:{file:"字數報價-日文-v1.2.0.html",name:"日文"},en:{file:"字數報價-英文-v1.2.0.html",name:"英文"},ko:{file:"字數報價-韓文-v1.2.0.html",name:"韓文"}};
 /* ===== 計數核心（SpeedCAT 口徑近似） ===== */
 const NB=/[\p{White_Space}\p{Cc}\p{Default_Ignorable_Code_Point}]/u;
 const HAS_L=/\p{L}/u;
@@ -263,8 +268,10 @@ function ziCount(s){
   return n;
 }
 function kanac(t){return ((t||"").match(/[぀-ゟ゠-ヿㇰ-ㇿ]/g)||[]).length}
-function addUnit(o,txt){o.bill+=gatedBill(txt);o.segs++;o.words+=wc(txt);o.cjk+=cjkc(txt);o.zi+=ziCount(txt);o.kana+=kanac(txt)}
-function newPart(){return{bill:0,raw:0,segs:0,words:0,cjk:0,zi:0,kana:0}}
+/* v1.2.0：韓文字母數（音節＋相容字母＋字母區）——僅供語言不符判斷，不影響計數 */
+function hangc(t){return ((t||"").match(/[가-힯ᄀ-ᇿ㄰-㆏]/g)||[]).length}
+function addUnit(o,txt){o.bill+=gatedBill(txt);o.segs++;o.words+=wc(txt);o.cjk+=cjkc(txt);o.zi+=ziCount(txt);o.kana+=kanac(txt);o.hang+=hangc(txt)}
+function newPart(){return{bill:0,raw:0,segs:0,words:0,cjk:0,zi:0,kana:0,hang:0}}
 const FUSE=30000, NEAR=27000;
 const FORMULA_ID="quote-v1-ceil-perfile-min-twd";
 
@@ -315,7 +322,7 @@ async function analyzePptx(zip){
   const names=Object.keys(zip.files);
   const get=async p=>parseXml(await zip.file(p).async("string"));
   const sel=re=>names.filter(n=>re.test(n)).sort();
-  const merge=(a,r)=>{a.bill+=r.bill;a.raw+=r.raw;a.segs+=r.segs;a.words+=r.words;a.cjk+=r.cjk;a.zi+=r.zi;a.kana+=r.kana};
+  const merge=(a,r)=>{a.bill+=r.bill;a.raw+=r.raw;a.segs+=r.segs;a.words+=r.words;a.cjk+=r.cjk;a.zi+=r.zi;a.kana+=r.kana;a.hang+=r.hang};
   let slide=newPart(), slideCount=0;
   for(const p of sel(/^ppt\/slides\/slide\d+\.xml$/)){slideCount++;
     const d=await get(p),ex=buildExcluded(d,"pptx");
@@ -335,10 +342,10 @@ async function analyzePptx(zip){
     const seen=new Map();
     for(const cache of locals(d,"strCache")){for(const v of locals(cache,"v")){const t=v.textContent||"";cc.raw+=countBillable(t);if(!seen.has(t))seen.set(t,true)}}
     for(const[t]of seen){if(gate(t))addUnit(cc,t)}
-    for(const rich of locals(d,"rich")){const r=countParas(locals(rich,"p"),paraTextA,new Set());cr.bill+=r.bill;cr.raw+=r.raw;cr.segs+=r.segs;cr.words+=r.words;cr.cjk+=r.cjk;cr.zi+=r.zi;cr.kana+=r.kana}
+    for(const rich of locals(d,"rich")){const r=countParas(locals(rich,"p"),paraTextA,new Set());cr.bill+=r.bill;cr.raw+=r.raw;cr.segs+=r.segs;cr.words+=r.words;cr.cjk+=r.cjk;cr.zi+=r.zi;cr.kana+=r.kana;cr.hang+=r.hang}
   }
   for(const p of sel(/^ppt\/drawings\/drawing\d+\.xml$/)){
-    const d=await get(p);const r=countParas(locals(d,"p"),paraTextA,new Set());cr.bill+=r.bill;cr.raw+=r.raw;cr.segs+=r.segs;cr.words+=r.words;cr.cjk+=r.cjk;cr.zi+=r.zi;cr.kana+=r.kana;
+    const d=await get(p);const r=countParas(locals(d,"p"),paraTextA,new Set());cr.bill+=r.bill;cr.raw+=r.raw;cr.segs+=r.segs;cr.words+=r.words;cr.cjk+=r.cjk;cr.zi+=r.zi;cr.kana+=r.kana;cr.hang+=r.hang;
   }
   parts["圖表快取（系列／類別名）"]=cc;
   parts["圖表文字與註記"]=cr;
@@ -366,7 +373,7 @@ async function analyzeDocx(zip){
     return countParas(locals(d,"p").filter(x=>x.localName==="p"),paraTextW,ex)};
   const body=await doPart("word/document.xml");samples.push(...body.samples);
   parts["正文（含表格、文字方塊）"]=body;
-  const acc=async(re,label)=>{let a=newPart();for(const p of sel(re)){const r=await doPart(p);a.bill+=r.bill;a.raw+=r.raw;a.segs+=r.segs;a.words+=r.words;a.cjk+=r.cjk;a.zi+=r.zi;a.kana+=r.kana}parts[label]=a};
+  const acc=async(re,label)=>{let a=newPart();for(const p of sel(re)){const r=await doPart(p);a.bill+=r.bill;a.raw+=r.raw;a.segs+=r.segs;a.words+=r.words;a.cjk+=r.cjk;a.zi+=r.zi;a.kana+=r.kana;a.hang+=r.hang}parts[label]=a};
   await acc(/^word\/header\d+\.xml$/,"頁首");
   await acc(/^word\/footer\d+\.xml$/,"頁尾");
   await acc(/^word\/footnotes\.xml$/,"註腳");
@@ -386,7 +393,7 @@ async function analyzeDocx(zip){
     const d=await get(p);const seen=new Map();
     for(const cache of locals(d,"strCache")){for(const v of locals(cache,"v")){const t=v.textContent||"";cc.raw+=countBillable(t);if(!seen.has(t))seen.set(t,true)}}
     for(const[t]of seen){if(gate(t))addUnit(cc,t)}
-    for(const rich of locals(d,"rich")){const r=countParas(locals(rich,"p"),paraTextA,new Set());cr.bill+=r.bill;cr.raw+=r.raw;cr.segs+=r.segs;cr.words+=r.words;cr.cjk+=r.cjk;cr.zi+=r.zi;cr.kana+=r.kana}
+    for(const rich of locals(d,"rich")){const r=countParas(locals(rich,"p"),paraTextA,new Set());cr.bill+=r.bill;cr.raw+=r.raw;cr.segs+=r.segs;cr.words+=r.words;cr.cjk+=r.cjk;cr.zi+=r.zi;cr.kana+=r.kana;cr.hang+=r.hang}
   }
   parts["圖表快取"]=cc;parts["圖表文字"]=cr;
   return{parts,samples,extra:{}};
@@ -429,7 +436,7 @@ async function analyzeXlsx(zip){
   parts["儲存格批注"]=cm;
   let dr=newPart();
   for(const p of sel(/^xl\/drawings\/drawing\d+\.xml$/)){
-    const d=await get(p);const r=countParas(locals(d,"p"),paraTextA,new Set());dr.bill+=r.bill;dr.raw+=r.raw;dr.segs+=r.segs;dr.words+=r.words;dr.cjk+=r.cjk;dr.zi+=r.zi;dr.kana+=r.kana;
+    const d=await get(p);const r=countParas(locals(d,"p"),paraTextA,new Set());dr.bill+=r.bill;dr.raw+=r.raw;dr.segs+=r.segs;dr.words+=r.words;dr.cjk+=r.cjk;dr.zi+=r.zi;dr.kana+=r.kana;dr.hang+=r.hang;
   }
   parts["繪圖文字方塊"]=dr;
   return{parts,samples,extra:{}};
@@ -547,8 +554,12 @@ async function handleFile(file){
        中文版遇假名占 CJK >5%→日文版。日文版遇純漢字不提示（日文名詞清單類檔可能零假名，誤報風險高，且中日計法相同） */
     if(bill>0){const ratio=cjk/bill;
       const kana=Object.values(parts).reduce((a,p)=>a+(p.kana||0),0);
+      const hang=Object.values(parts).reduce((a,p)=>a+(p.hang||0),0);
+      const koish=cjk>0&&hang/cjk>0.3; /* v1.2.0：韓文字母占 CJK >30%＝韓文檔 */
       if(LANG.unit==="char"&&ratio<0.1){r.warnings.push("langmis");r.suggest="en"}
-      else if(LANG.unit==="word"&&ratio>0.3){r.warnings.push("langmis");r.suggest=kana>0?"ja":"zh"}
+      else if(LANG.unit==="word"&&ratio>0.3){r.warnings.push("langmis");r.suggest=koish?"ko":kana>0?"ja":"zh"}
+      else if(LANG.code!=="ko"&&koish){r.warnings.push("langmis");r.suggest="ko"}
+      else if(LANG.code==="ko"&&cjk>0&&!koish){r.warnings.push("langmis");r.suggest=kana>0?"ja":"zh"}
       else if(LANG.code==="zh"&&cjk>0&&kana/cjk>0.05){r.warnings.push("langmis");r.suggest="ja"}}
     /* v2.0.1：DOCX 頁首/頁尾預設不入報價（Word 字數統計不含它們；多為頁碼與模板出處。需翻譯時勾回即可） */
     if(ext==="docx")for(const k of["頁首","頁尾"]){if(parts[k]&&parts[k].bill>0)r.excluded.add(k)}
@@ -706,7 +717,7 @@ function lineText(){
   s+=`有效期至 ${exp}（${q.days} 天）\n`;
   s+=`＊計數規則：只收實際需翻譯的文字（含圖形／圖表內文字；不含空白與純數字段落）。\n`;
   s+=`＊${LANG.unit==="word"?"以單字數計":"以文字數計"}（不含空白）；圖片內文字不在計數內，需翻譯另行估價。\n`;
-  s+=`＊報價以檔案指紋（上列 8 碼）鎖定版本；檔案更新需重新計數。工具 中文版 v1.1.1`;
+  s+=`＊報價以檔案指紋（上列 8 碼）鎖定版本；檔案更新需重新計數。工具 中文版 v1.2.0`;
   return s;
 }
 document.getElementById("calc").onclick=()=>calc(false);
